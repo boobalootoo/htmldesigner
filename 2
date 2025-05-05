@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual HTML Builder</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            font-family: sans-serif;
+        }
+        #toolbar {
+            width: 200px;
+            background: #f0f0f0;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #canvas {
+            flex-grow: 1;
+            position: relative;
+            background: #fff;
+            overflow: hidden;
+            /* Prevent text selection */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        .shape {
+            position: absolute;
+            border: 1px solid #000;
+            box-sizing: border-box;
+        }
+        .shape:focus {
+             border: 2px solid blue;
+             outline: none;
+        }
+        .resize-handle {
+            width: 10px;
+            height: 10px;
+            background: #000;
+            position: absolute;
+            right: -5px;
+            bottom: -5px;
+            cursor: se-resize;
+        }
+        .delete-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            /* Fix: Prevent text selection on the button */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        .delete-btn:hover {
+            background-color: darkred;
+        }
+        #codeOutput {
+            width: 100%;
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <select id="shapeType">
+            <option value="div">Div</option>
+            <option value="circle">Circle</option>
+            <option value="textbox">Text Box</option>
+            <option value="button">Button</option>
+            <option value="image">Image</option>
+        </select>
+        <input type="text" id="shapeId" placeholder="ID">
+        <input type="color" id="shapeColor" value="#00ccff">
+        <input type="text" id="shapeText" placeholder="Text or Image URL">
+        <button onclick="toggleHTML()">Hide HTML</button>
+        <textarea id="codeOutput" readonly></textarea>
+    </div>
+    <div id="canvas"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const shapeTypeSelect = document.getElementById('shapeType');
+        const shapeIdInput = document.getElementById('shapeId');
+        const shapeColorInput = document.getElementById('shapeColor');
+        const shapeTextInput = document.getElementById('shapeText');
+        const codeOutput = document.getElementById('codeOutput');
+
+        let shapes = [];
+        let isDrawing = false;
+        let startX, startY;
+        let currentShape = null;
+        let selectedShape = null;
+        let offsetLeft = 0;  // Add this
+        let offsetTop = 0;    // Add this
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#toolbar') || e.target.classList.contains('resize-handle') || e.target.classList.contains('delete-btn')) {
+                return;
+            }
+
+            if (e.target.classList.contains('shape')) {
+                selectedShape = e.target;
+                // Bring selected shape to the front by changing z-index.
+                selectedShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = canvas.getBoundingClientRect(); // Get canvas position
+                offsetLeft = rect.left;             // Store canvas offset
+                offsetTop = rect.top;
+                canvas.addEventListener('mousemove', moveShape);
+                canvas.addEventListener('mouseup', stopMove);
+                return;
+            }
+
+            isDrawing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = canvas.getBoundingClientRect(); // Get canvas position.
+            offsetLeft = rect.left;             // Store canvas offset
+            offsetTop = rect.top;
+
+            currentShape = document.createElement('div');
+            currentShape.className = 'shape';
+            currentShape.style.position = 'absolute';
+            currentShape.style.left = startX - offsetLeft + 'px'; // Correct initial position.
+            currentShape.style.top = startY - offsetTop + 'px';  // Correct initial position.
+            currentShape.style.backgroundColor = shapeColorInput.value;
+            if (shapeTypeSelect.value === 'circle') currentShape.style.borderRadius = '50%';
+            currentShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
+
+
+            if (shapeTypeSelect.value === 'textbox') {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = shapeTextInput.value;
+                currentShape.appendChild(input);
+            } else if (shapeTypeSelect.value === 'button') {
+                const btn = document.createElement('button');
+                btn.textContent = shapeTextInput.value;
+                currentShape.appendChild(btn);
+            } else if (shapeTypeSelect.value === 'image') {
+                const img = document.createElement('img');
+                img.src = shapeTextInput.value;
+                img.style.width = '100%';
+                img.style.height = '100%';
+                currentShape.appendChild(img);
+            } else {
+                currentShape.textContent = shapeTextInput.value;
+            }
+
+            canvas.appendChild(currentShape);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing && !selectedShape) return;
+
+            const x = e.clientX;
+            const y = e.clientY;
+
+            if (isDrawing && currentShape) {
+                const width = Math.abs(x - startX);
+                const height = Math.abs(y - startY);
+                const left = Math.min(x, startX);
+                const top = Math.min(y, startY);
+
+                currentShape.style.width = width + 'px';
+                currentShape.style.height = height + 'px';
+                currentShape.style.left = left - offsetLeft + 'px';  // Correct position during draw.
+                currentShape.style.top = top - offsetTop + 'px';   // Correct position during draw.
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!isDrawing && !selectedShape) return;
+
+            if (isDrawing) {
+                isDrawing = false;
+
+                const rect = currentShape.getBoundingClientRect();
+                const parentRect = canvas.getBoundingClientRect();
+
+                if (rect.width < 10 || rect.height < 10) {
+                    canvas.removeChild(currentShape);
+                    currentShape = null;
+                    return;
+                }
+
+                const shapeData = {
+                    id: shapeIdInput.value,
+                    color: shapeColorInput.value,
+                    text: shapeTextInput.value,
+                    type: shapeTypeSelect.value,
+                    left: rect.left - parentRect.left,
+                    top: rect.top - parentRect.top,
+                    width: rect.width,
+                    height: rect.height
+                };
+
+                currentShape.appendChild(createResizeHandle(currentShape));
+                currentShape.appendChild(createDeleteButton(currentShape, shapeData));
+                shapes.push(shapeData);
+                currentShape = null;
+                updateCode();
+            }
+        });
+
+        function moveShape(e) {
+            if (!selectedShape) return;
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            const currentLeft = parseInt(selectedShape.style.left) || 0;
+            const currentTop = parseInt(selectedShape.style.top) || 0;
+
+            selectedShape.style.left = currentLeft + deltaX + 'px';
+            selectedShape.style.top = currentTop + deltaY + 'px';
+            startX = e.clientX;
+            startY = e.clientY;
+            updateCode();
+        }
+
+        function stopMove() {
+            canvas.removeEventListener('mousemove', moveShape);
+            canvas.removeEventListener('mouseup', stopMove);
+            selectedShape = null;
+        }
+
+        function createResizeHandle(shape) {
+            const handle = document.createElement('div');
+            handle.className = 'resize-handle';
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                const initX = e.clientX;
+                const initY = e.clientY;
+                const initWidth = shape.offsetWidth;
+                const initHeight = shape.offsetHeight;
+                const shapeLeft = parseInt(shape.style.left) || 0;
+                const shapeTop = parseInt(shape.style.top) || 0;
+
+                function onMouseMove(e) {
+                    const deltaX = e.clientX - initX;
+                    const deltaY = e.clientY - initY;
+                    const newWidth = initWidth + deltaX;
+                    const newHeight = initHeight + deltaY;
+
+                    shape.style.width = newWidth + 'px';
+                    shape.style.height = newHeight + 'px';
+                }
+
+                function onMouseUp() {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                    updateCode();
+                }
+
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
+            });
+            return handle;
+        }
+
+        function createDeleteButton(shape, shapeData) {
+            const btn = document.createElement('button');
+            btn.className = 'delete-btn';
+            btn.textContent = '×';
+            btn.addEventListener('click', () => {
+                canvas.removeChild(shape);
+                shapes = shapes.filter(s => s !== shapeData);
+                updateCode();
+            });
+            return btn;
+        }
+
+        function updateCode() {
+            let html = '';
+            for (let shape of shapes) {
+                let content = '';
+                if (shape.type === 'textbox') content = `<input type="text" value="${shape.text}">`;
+                else if (shape.type === 'button') content = `<button>${shape.text}</button>`;
+                else if (shape.type === 'image') content = `<img src="${shape.text}" style="width:100%;height:100%;">`;
+                else content = shape.text;
+
+                let style = `position:absolute;left:${shape.left}px;top:${shape.top}px;width:${shape.width}px;height:${shape.height}px;background:${shape.color};${shape.type === 'circle' ? 'border-radius:50%;' : ''}`;
+
+                html += `<div id="${shape.id}" style="${style}">${content}</div>\n`;
+            }
+            codeOutput.value = html;
+        }
+
+        function toggleHTML() {
+            codeOutput.style.display = codeOutput.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
