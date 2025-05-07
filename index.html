@@ -30,6 +30,10 @@
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
+            cursor: crosshair; /* Default cursor for canvas */
+        }
+        #canvas.drawing {
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M0 0h32v32H0z" fill="transparent"/><path d="M8.5 16.5h15M16.5 8.5v15M16.5 24a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z" fill="rgba(0,0,0,1)" stroke="rgba(0,0,0,1)" stroke-width="1"/></svg>') 16 16, auto; /* Custom cursor for drawing */
         }
         .shape {
             position: absolute;
@@ -73,6 +77,19 @@
             width: 100%;
             height: 150px;
         }
+        .line {
+            position: absolute;
+            border: 1px solid #000;
+        }
+       .arrow {
+            position: absolute;
+        }
+        .freeform {
+           position: absolute;
+           background-size: 100% 100%;
+           background-repeat: no-repeat;
+        }
+
     </style>
 </head>
 <body>
@@ -81,8 +98,11 @@
             <option value="div">Div</option>
             <option value="circle">Circle</option>
             <option value="textbox">Text Box</option>
-            <option value="button">Button</option>
+            <option value="button">Button</button>
             <option value="image">Image</option>
+            <option value="line">Line</option>
+            <option value="arrow">Arrow</option>
+            <option value="freeform">Free Draw</option>
         </select>
         <input type="text" id="shapeId" placeholder="ID">
         <input type="color" id="shapeColor" value="#00ccff">
@@ -105,8 +125,9 @@
         let startX, startY;
         let currentShape = null;
         let selectedShape = null;
-        let offsetLeft = 0;  // Add this
-        let offsetTop = 0;    // Add this
+        let offsetLeft = 0;
+        let offsetTop = 0;
+        let drawingPath = null; // For freeform drawing
 
         canvas.addEventListener('mousedown', (e) => {
             if (e.target.closest('#toolbar') || e.target.classList.contains('resize-handle') || e.target.classList.contains('delete-btn')) {
@@ -119,8 +140,8 @@
                 selectedShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
                 startX = e.clientX;
                 startY = e.clientY;
-                const rect = canvas.getBoundingClientRect(); // Get canvas position
-                offsetLeft = rect.left;             // Store canvas offset
+                const rect = canvas.getBoundingClientRect();
+                offsetLeft = rect.left;
                 offsetTop = rect.top;
                 canvas.addEventListener('mousemove', moveShape);
                 canvas.addEventListener('mouseup', stopMove);
@@ -130,40 +151,61 @@
             isDrawing = true;
             startX = e.clientX;
             startY = e.clientY;
-            const rect = canvas.getBoundingClientRect(); // Get canvas position.
-            offsetLeft = rect.left;             // Store canvas offset
+            const rect = canvas.getBoundingClientRect();
+            offsetLeft = rect.left;
             offsetTop = rect.top;
 
-            currentShape = document.createElement('div');
-            currentShape.className = 'shape';
-            currentShape.style.position = 'absolute';
-            currentShape.style.left = startX - offsetLeft + 'px'; // Correct initial position.
-            currentShape.style.top = startY - offsetTop + 'px';  // Correct initial position.
-            currentShape.style.backgroundColor = shapeColorInput.value;
-            if (shapeTypeSelect.value === 'circle') currentShape.style.borderRadius = '50%';
-            currentShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
-
-
-            if (shapeTypeSelect.value === 'textbox') {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.value = shapeTextInput.value;
-                currentShape.appendChild(input);
-            } else if (shapeTypeSelect.value === 'button') {
-                const btn = document.createElement('button');
-                btn.textContent = shapeTextInput.value;
-                currentShape.appendChild(btn);
-            } else if (shapeTypeSelect.value === 'image') {
-                const img = document.createElement('img');
-                img.src = shapeTextInput.value;
-                img.style.width = '100%';
-                img.style.height = '100%';
-                currentShape.appendChild(img);
+            if (shapeTypeSelect.value === 'freeform') {
+                canvas.classList.add('drawing'); // Apply custom cursor
+                drawingPath = [];
+                currentShape = document.createElement('div');
+                currentShape.className = 'shape freeform';
+                currentShape.style.position = 'absolute';
+                currentShape.style.left = startX - offsetLeft + 'px';
+                currentShape.style.top = startY - offsetTop + 'px';
+                currentShape.style.width = '0px';
+                currentShape.style.height = '0px';
+                currentShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
+                canvas.appendChild(currentShape);
             } else {
-                currentShape.textContent = shapeTextInput.value;
-            }
+                currentShape = document.createElement('div');
+                currentShape.className = 'shape';
+                currentShape.style.position = 'absolute';
+                currentShape.style.left = startX - offsetLeft + 'px';
+                currentShape.style.top = startY - offsetTop + 'px';
+                currentShape.style.backgroundColor = shapeColorInput.value;
+                if (shapeTypeSelect.value === 'circle') currentShape.style.borderRadius = '50%';
+                currentShape.style.zIndex = Math.max(10, ...Array.from(canvas.children).map(el => parseInt(el.style.zIndex) || 0)) + 1;
 
-            canvas.appendChild(currentShape);
+                if (shapeTypeSelect.value === 'textbox') {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = shapeTextInput.value;
+                    currentShape.appendChild(input);
+                } else if (shapeTypeSelect.value === 'button') {
+                    const btn = document.createElement('button');
+                    btn.textContent = shapeTextInput.value;
+                    currentShape.appendChild(btn);
+                } else if (shapeTypeSelect.value === 'image') {
+                    const img = document.createElement('img');
+                    img.src = shapeTextInput.value;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    currentShape.appendChild(img);
+                } else if (shapeTypeSelect.value === 'line') {
+                    currentShape.classList.add('line');
+                    currentShape.style.width = '0px';
+                    currentShape.style.height = '0px';
+                } else if (shapeTypeSelect.value === 'arrow') {
+                    currentShape.classList.add('arrow');
+                    currentShape.style.width = '0px';
+                    currentShape.style.height = '0px';
+                } else {
+                    currentShape.textContent = shapeTextInput.value;
+                }
+
+                canvas.appendChild(currentShape);
+            }
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -172,16 +214,70 @@
             const x = e.clientX;
             const y = e.clientY;
 
-            if (isDrawing && currentShape) {
-                const width = Math.abs(x - startX);
-                const height = Math.abs(y - startY);
-                const left = Math.min(x, startX);
-                const top = Math.min(y, startY);
+            if (isDrawing) {
+                if (shapeTypeSelect.value === 'freeform') {
+                    drawingPath.push({ x: x - offsetLeft, y: y - offsetTop });
+                    let pathString = drawingPath.map(p => `${p.x},${p.y}`).join(' L');
+                    const minX = Math.min(...drawingPath.map(p => p.x));
+                    const minY = Math.min(...drawingPath.map(p => p.y));
+                    const maxX = Math.max(...drawingPath.map(p => p.x));
+                    const maxY = Math.max(...drawingPath.map(p => p.y));
+                    const width = maxX - minX;
+                    const height = maxY - minY;
+                    const svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+                        <path d="M${drawingPath.map(p => `${p.x - minX},${p.y - minY}`).join(' L')}" stroke="${shapeColorInput.value}" stroke-width="2" fill="none"/>
+                    </svg>`;
+                    currentShape.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svgData).replace(/</g, '%3C').replace(/>/g, '%3E')}")`;
+                    currentShape.style.backgroundSize = '100% 100%';
+                    currentShape.style.backgroundRepeat = 'no-repeat';
+                    currentShape.style.width = width + 'px';
+                    currentShape.style.height = height + 'px';
+                    currentShape.style.left = minX + 'px';
+                    currentShape.style.top = minY + 'px';
 
-                currentShape.style.width = width + 'px';
-                currentShape.style.height = height + 'px';
-                currentShape.style.left = left - offsetLeft + 'px';  // Correct position during draw.
-                currentShape.style.top = top - offsetTop + 'px';   // Correct position during draw.
+                } else if (shapeTypeSelect.value === 'line' || shapeTypeSelect.value === 'arrow') {
+                    const width = x - startX;
+                    const height = y - startY;
+                    const distance = Math.sqrt(width * width + height * height);
+                    const angle = Math.atan2(y - startY, x - startX) * 180 / Math.PI;
+
+                    currentShape.style.width = distance + 'px';
+                    currentShape.style.height = '0px';
+                    currentShape.style.left = startX - offsetLeft + 'px';
+                    currentShape.style.top = startY - offsetTop + 'px';
+                    currentShape.style.transform = `rotate(${angle}deg)`;
+
+                    if (shapeTypeSelect.value === 'arrow') {
+                        const arrowSize = 10;
+                        const arrowWidth = 20;
+                        const svgArrow = `<svg xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+                            <defs>
+                                <marker id="arrowhead" viewBox="0 -5 10 10" refX="8" refY="0"
+                                    markerWidth="6" markerHeight="6" orient="auto">
+                                    <path d="M0,-5L10,0L0,5" fill="${shapeColorInput.value}" />
+                                </marker>
+                            </defs>
+                            <g transform="rotate(${angle}, ${distance}, 0)">
+                                <line x1="0" y1="0" x2="${distance}" y2="0" stroke="${shapeColorInput.value}" stroke-width="2" marker-end="url(#arrowhead)" />
+                                 <polygon points="${distance},0 ${distance - arrowSize},${-arrowSize/2} ${distance - arrowSize},${arrowSize/2}" fill="${shapeColorInput.value}" />
+                            </g>
+                        </svg>`;
+                        currentShape.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svgArrow)}")`;
+                        currentShape.style.backgroundSize = `${distance}px 2px`;
+                        currentShape.style.backgroundRepeat = 'no-repeat';
+                    }
+                }
+                 else {
+                    const width = Math.abs(x - startX);
+                    const height = Math.abs(y - startY);
+                    const left = Math.min(x, startX);
+                    const top = Math.min(y, startY);
+
+                    currentShape.style.width = width + 'px';
+                    currentShape.style.height = height + 'px';
+                    currentShape.style.left = left - offsetLeft + 'px';
+                    currentShape.style.top = top - offsetTop + 'px';
+                }
             }
         });
 
@@ -190,30 +286,70 @@
 
             if (isDrawing) {
                 isDrawing = false;
+                canvas.classList.remove('drawing');
+                if (shapeTypeSelect.value === 'freeform') {
+                      if (drawingPath.length > 1) {
+                        // Convert the drawing path to a simplified SVG path string
+                        let pathString = drawingPath.map(p => `${p.x},${p.y}`).join(' L');
+                         const minX = Math.min(...drawingPath.map(p => p.x));
+                        const minY = Math.min(...drawingPath.map(p => p.y));
+                        const maxX = Math.max(...drawingPath.map(p => p.x));
+                        const maxY = Math.max(...drawingPath.map(p => p.y));
+                        const width = maxX - minX;
+                        const height = maxY - minY;
 
-                const rect = currentShape.getBoundingClientRect();
-                const parentRect = canvas.getBoundingClientRect();
+                        // Adjust the path string to be relative to the top-left corner of the bounding box
+                        const relativePathString = drawingPath.map(p => `${p.x - minX},${p.y - minY}`).join(' L');
+                        const svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+                            <path d="M${relativePathString}" stroke="${shapeColorInput.value}" stroke-width="2" fill="none"/>
+                        </svg>`;
 
-                if (rect.width < 10 || rect.height < 10) {
-                    canvas.removeChild(currentShape);
-                    currentShape = null;
-                    return;
+                        const shapeData = {
+                            id: shapeIdInput.value,
+                            color: shapeColorInput.value,
+                            text: '',
+                            type: 'freeform',
+                            left:  startX - offsetLeft,
+                            top: startY - offsetTop,
+                            width: width,
+                            height: height,
+                            path: relativePathString, // Store the relative path data
+                            svg: svgData
+                        };
+                       shapes.push(shapeData);
+                    }
+                    else{
+                         canvas.removeChild(currentShape);
+                         currentShape = null;
+                         return;
+                    }
+                 }
+                else {
+                    const rect = currentShape.getBoundingClientRect();
+                    const parentRect = canvas.getBoundingClientRect();
+
+                    if (rect.width < 10 || rect.height < 10) {
+                        canvas.removeChild(currentShape);
+                        currentShape = null;
+                        return;
+                    }
+
+                    const shapeData = {
+                        id: shapeIdInput.value,
+                        color: shapeColorInput.value,
+                        text: shapeTextInput.value,
+                        type: shapeTypeSelect.value,
+                        left: rect.left - parentRect.left,
+                        top: rect.top - parentRect.top,
+                        width: rect.width,
+                        height: rect.height,
+                        style: currentShape.style.transform //store rotation
+                    };
+
+                    currentShape.appendChild(createResizeHandle(currentShape));
+                    currentShape.appendChild(createDeleteButton(currentShape, shapeData));
+                    shapes.push(shapeData);
                 }
-
-                const shapeData = {
-                    id: shapeIdInput.value,
-                    color: shapeColorInput.value,
-                    text: shapeTextInput.value,
-                    type: shapeTypeSelect.value,
-                    left: rect.left - parentRect.left,
-                    top: rect.top - parentRect.top,
-                    width: rect.width,
-                    height: rect.height
-                };
-
-                currentShape.appendChild(createResizeHandle(currentShape));
-                currentShape.appendChild(createDeleteButton(currentShape, shapeData));
-                shapes.push(shapeData);
                 currentShape = null;
                 updateCode();
             }
@@ -231,6 +367,7 @@
             selectedShape.style.top = currentTop + deltaY + 'px';
             startX = e.clientX;
             startY = e.clientY;
+            updateShapeData(selectedShape); // Also update shape data!
             updateCode();
         }
 
@@ -260,12 +397,13 @@
 
                     shape.style.width = newWidth + 'px';
                     shape.style.height = newHeight + 'px';
+                    updateShapeData(shape); // Update shape data on resize
+                    updateCode();
                 }
 
                 function onMouseUp() {
                     window.removeEventListener('mousemove', onMouseMove);
                     window.removeEventListener('mouseup', onMouseUp);
-                    updateCode();
                 }
 
                 window.addEventListener('mousemove', onMouseMove);
@@ -286,6 +424,22 @@
             return btn;
         }
 
+         function updateShapeData(shape) {
+            const shapeId = shape.id;
+            const shapeRect = shape.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            for (let i = 0; i < shapes.length; i++) {
+                if (shapes[i].id === shapeId) {
+                    shapes[i].left = shapeRect.left - canvasRect.left;
+                    shapes[i].top = shapeRect.top - canvasRect.top;
+                    shapes[i].width = shapeRect.width;
+                    shapes[i].height = shapeRect.height;
+                    shapes[i].style = shape.style.transform; //save rotation
+                    break;
+                }
+            }
+        }
+
         function updateCode() {
             let html = '';
             for (let shape of shapes) {
@@ -293,6 +447,34 @@
                 if (shape.type === 'textbox') content = `<input type="text" value="${shape.text}">`;
                 else if (shape.type === 'button') content = `<button>${shape.text}</button>`;
                 else if (shape.type === 'image') content = `<img src="${shape.text}" style="width:100%;height:100%;">`;
+                 else if (shape.type === 'freeform') {
+                    const svgContent = shape.svg;
+                    const left = shape.left;
+                    const top = shape.top;
+                    content = `<div style="position:absolute;left:${left}px;top:${top}px;width:${shape.width}px;height:${shape.height}px;background-image: url('data:image/svg+xml,${encodeURIComponent(svgContent).replace(/</g, '%3C').replace(/>/g, '%3E')}'); background-size: 100% 100%;background-repeat: no-repeat;"></div>`;
+                }
+                else if (shape.type === 'line') content = `<div style="position:absolute;left:${shape.left}px;top:${shape.top}px;width:${shape.width}px;height:0px;background:${shape.color};transform: rotate(${parseFloat(shape.style.transform.replace(/[^0-9.-]/g, '')) || 0}deg);"></div>`;
+                else if (shape.type === 'arrow') {
+                    const arrowSize = 10;
+                    const style = shape.style ? shape.style : "";
+                    const rotation = style && style.transform ? parseFloat(style.transform.replace(/[^0-9.-]/g, '')) || 0 : 0;
+                    const tipX = shape.width;
+                    const tipY = 0;
+
+                    const arrowSvg = `<svg xmlns="http://www.w3.org/2000/svg" style="overflow:visible;" width="${shape.width + arrowSize}" height="${arrowSize}">
+                        <defs>
+                            <marker id="arrowhead" viewBox="0 -5 10 10" refX="8" refY="0"
+                                markerWidth="6" markerHeight="6" orient="auto">
+                                <path d="M0,-5L10,0L0,5" fill="${shapeColorInput.value}" />
+                            </marker>
+                        </defs>
+                        <g transform="rotate(${rotation}, ${tipX}, ${tipY})">
+                            <line x1="0" y1="0" x2="${shape.width}" y2="0" stroke="${shape.color}" stroke-width="2" marker-end="url(#arrowhead)" />
+                             <polygon points="${tipX},${tipY} ${tipX - arrowSize},${-arrowSize/2} ${tipX - arrowSize},${arrowSize/2}" fill="${shape.color}" />
+                        </g>
+                    </svg>`;
+                    content = `<div style="position:absolute;left:${shape.left}px;top:${shape.top}px;width:${shape.width + arrowSize}px;height:${arrowSize}px; background-image: url('data:image/svg+xml,${encodeURIComponent(arrowSvg).replace(/</g, '%3C').replace(/>/g, '%3E')}'); background-size: 100% 100%;background-repeat: no-repeat;transform: rotate(${rotation}deg);"></div>`;
+                }
                 else content = shape.text;
 
                 let style = `position:absolute;left:${shape.left}px;top:${shape.top}px;width:${shape.width}px;height:${shape.height}px;background:${shape.color};${shape.type === 'circle' ? 'border-radius:50%;' : ''}`;
