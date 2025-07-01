@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Block Builder</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for better visual appeal and layout */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+            background-color: #f3f4f6; /* Light gray background */
+            overflow: hidden; /* Prevent body scroll */
+        }
+
+        /* Main app container */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: 100vh; /* Make it fill the viewport height */
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            width: 300px; /* Default sidebar width */
+            min-width: 200px; /* Minimum width for resizing */
+            max-width: 500px; /* Maximum width for resizing */
+            background-color: #e5e7eb; /* Gray-100 */
+            border-right: 1px solid #d1d5db; /* Gray-200 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease-in-out, transform 0.3s ease-in-out; /* Smooth transition for collapse */
+            transform: translateX(0); /* Default: visible */
+            position: relative; /* For resizer */
+            z-index: 10; /* Ensure it's above content when open */
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            transform: translateX(-100%); /* Hide by sliding left */
+            overflow: hidden; /* Hide content when collapsed */
+        }
+
+        /* Resizer handle */
+        .resizer {
+            width: 8px;
+            cursor: ew-resize;
+            position: absolute;
+            right: -4px; /* Half of its width to be on the border */
+            top: 0;
+            bottom: 0;
+            z-index: 20; /* Above sidebar content */
+            background-color: transparent; /* Invisible by default */
+        }
+        .resizer:hover {
+            background-color: rgba(0, 0, 0, 0.1); /* Slight visual cue on hover */
+        }
+
+        /* Toggle button for sidebar */
+        .sidebar-toggle-btn {
+            position: absolute;
+            top: 1rem;
+            left: calc(100% + 10px); /* Position outside the sidebar */
+            z-index: 100; /* Ensure it's clickable */
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: left 0.3s ease-in-out;
+        }
+
+        .sidebar.collapsed + .sidebar-toggle-btn {
+            left: 1rem; /* Adjust position when sidebar is collapsed */
+        }
+
+
+        /* Content area (now only Live Preview) */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            gap: 1.5rem;
+            overflow: hidden; /* Prevent internal scrollbars */
+        }
+
+        /* Workspace styles (now inside sidebar) */
+        .workspace {
+            flex: 1; /* Take up available space within the sidebar */
+            background-color: #ffffff;
+            border: 2px dashed #d1d5db; /* Gray-300 */
+            border-radius: 0.5rem;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280; /* Gray-500 */
+            font-size: 1.125rem; /* text-lg */
+            overflow-y: auto; /* Enable scrolling if content overflows */
+            margin-bottom: 1.5rem; /* Spacing from HTML Code Output */
+        }
+
+        /* Live Preview (full screen) */
+        .live-preview-container {
+            flex: 1; /* Take all available space */
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .live-preview-iframe {
+            flex: 1; /* Make iframe fill available space */
+            border: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Block item in palette */
+        .block-item {
+            cursor: grab;
+            padding: 0.75rem; /* Smaller padding */
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            text-align: center;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+            margin-bottom: 0.5rem; /* Spacing for single column */
+        }
+
+        .block-item:hover {
+            background-color: #2563eb; /* Blue-600 */
+        }
+
+        /* Specific block colors */
+        .block-item.image { background-color: #3b82f6; } /* Blue */
+        .block-item.background-color { background-color: #10b981; } /* Green */
+        .block-item.text { background-color: #8b5cf6; } /* Purple */
+        .block-item.link { background-color: #f59e0b; } /* Yellow */
+        .block-item.video { background-color: #ef4444; } /* Red */
+        .block-item.heading { background-color: #60a5fa; } /* Blue-400 */
+        .block-item.button { background-color: #34d399; } /* Green-400 */
+        .block-item.unordered-list { background-color: #a78bfa; } /* Purple-400 */
+        .block-item.ordered-list { background-color: #fbbf24; } /* Amber-400 */
+        .block-item.horizontal-rule { background-color: #9ca3af; } /* Gray-400 */
+        .block-item.div-container { background-color: #6ee7b7; } /* Teal-300 */
+        .block-item.input-field { background-color: #f87171; } /* Red-400 */
+        .block-item.textarea { background-color: #fca5a5; } /* Red-300 */
+        .block-item.line-break { background-color: #d1d5db; color: #374151; } /* Gray-300 */
+
+
+        /* Styles for the block elements within the workspace */
+        .workspace .block-element {
+            position: relative;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.375rem; /* rounded-md */
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+            border: 1px solid #e5e7eb; /* border-gray-200 */
+            background-color: #f9fafb; /* bg-gray-50 */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer; /* Indicate clickable */
+            width: 100%; /* Ensure they take full width */
+        }
+
+        .workspace .block-element.selected {
+            border: 2px solid #3b82f6; /* Blue-500 for selected */
+        }
+
+        .workspace .block-element .delete-btn {
+            padding: 0.25rem;
+            border-radius: 9999px; /* rounded-full */
+            background-color: #fee2e2; /* red-100 */
+            color: #dc2626; /* red-600 */
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .workspace .block-element .delete-btn:hover {
+            background-color: #fecaca; /* red-200 */
+        }
+
+        /* HTML Code Output */
+        .code-output-container {
+            background-color: #ffffff;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            flex: 1; /* Take equal vertical space */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .code-output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .code-pre {
+            background-color: #1f2937; /* Gray-800 */
+            color: #f9fafb; /* White */
+            padding: 1rem;
+            border-radius: 0.375rem;
+            overflow: auto;
+            font-size: 0.875rem; /* text-sm */
+            flex: 1; /* Allow pre to grow */
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            visibility: hidden; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            max-height: 90vh; /* Prevent modal from exceeding viewport height */
+            overflow-y: auto; /* Scrollable content if needed */
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="app" class="app-container">
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar">
+            <div class="resizer" id="sidebar-resizer"></div>
+            <div class="p-6 flex flex-col flex-1 overflow-y-auto">
+                <!-- Block Palette -->
+                <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-800">Blocks</h2>
+                    <!-- Search Bar -->
+                    <input type="text" id="block-search" placeholder="Search blocks..."
+                        class="w-full p-2 mb-4 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <div id="block-palette-list" class="flex flex-col gap-2">
+                        <div class="block-item image" draggable="true" data-block-type="image">Add Image</div>
+                        <div class="block-item background-color" draggable="true" data-block-type="background-color">Background Color</div>
+                        <div class="block-item paragraph" draggable="true" data-block-type="paragraph">Paragraph</div>
+                        <div class="block-item heading" draggable="true" data-block-type="heading">Heading</div>
+                        <div class="block-item button" draggable="true" data-block-type="button">Button</div>
+                        <div class="block-item unordered-list" draggable="true" data-block-type="unordered-list">Unordered List</div>
+                        <div class="block-item ordered-list" draggable="true" data-block-type="ordered-list">Ordered List</div>
+                        <div class="block-item link" draggable="true" data-block-type="link">Add Link</div>
+                        <div class="block-item video" draggable="true" data-block-type="video">Add Video</div>
+                        <div class="block-item horizontal-rule" draggable="true" data-block-type="horizontal-rule">Horizontal Rule</div>
+                        <div class="block-item div-container" draggable="true" data-block-type="div-container">Div Container</div>
+                        <div class="block-item input-field" draggable="true" data-block-type="input-field">Input Field</div>
+                        <div class="block-item textarea" draggable="true" data-block-type="textarea">Textarea</div>
+                        <div class="block-item line-break" draggable="true" data-block-type="line-break">Line Break</div>
+                    </div>
+                </div>
+
+                <!-- Workspace (Building Section) - NOW INSIDE SIDEBAR -->
+                <div id="workspace" class="workspace">
+                    <p>Drag and drop blocks here to build your site!</p>
+                </div>
+
+                <!-- HTML Code Output -->
+                <div class="code-output-container flex-1">
+                    <div class="code-output-header">
+                        <h2 class="text-2xl font-bold text-gray-800">HTML Code</h2>
+                        <button id="copy-html-btn" class="px-4 py-2 bg-blue-500 text-white rounded-md shadow-md hover:bg-blue-600 transition-colors duration-200 text-sm">
+                            Copy
+                        </button>
+                    </div>
+                    <pre class="code-pre"><code id="html-code-output"></code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Toggle Button -->
+        <button id="sidebar-toggle" class="sidebar-toggle-btn">
+            <svg id="toggle-icon-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <svg id="toggle-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+
+
+        <!-- Content Area: Now only Live Preview -->
+        <div class="content-area">
+            <!-- Live Preview -->
+            <div class="live-preview-container">
+                <h2 class="text-2xl font-bold p-4 text-gray-800">Live Preview</h2>
+                <iframe id="live-preview-iframe" class="live-preview-iframe"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Property Editor Modal -->
+    <div id="property-editor-modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">Edit Block Properties</h3>
+            <div id="property-fields" class="space-y-4">
+                <!-- Property fields will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state for blocks
+        let blocks = [];
+        let selectedBlockId = null;
+
+        // DOM elements
+        const sidebar = document.getElementById('sidebar');
+        const sidebarResizer = document.getElementById('sidebar-resizer');
+        const sidebarToggleBtn = document.getElementById('sidebar-toggle');
+        const toggleIconOpen = document.getElementById('toggle-icon-open');
+        const toggleIconClose = document.getElementById('toggle-icon-close');
+
+        const workspace = document.getElementById('workspace');
+        const livePreviewIframe = document.getElementById('live-preview-iframe');
+        const htmlCodeOutput = document.getElementById('html-code-output');
+        const copyHtmlBtn = document.getElementById('copy-html-btn');
+        const blockPaletteList = document.getElementById('block-palette-list');
+        const blockSearchInput = document.getElementById('block-search');
+
+        const propertyEditorModalOverlay = document.getElementById('property-editor-modal-overlay');
+        const propertyEditorFields = document.getElementById('property-fields');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        // Function to generate unique IDs
+        const generateUniqueId = () => `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // --- Sidebar Toggle Logic ---
+        sidebarToggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            toggleIconOpen.classList.toggle('hidden');
+            toggleIconClose.classList.toggle('hidden');
+        });
+
+        // --- Sidebar Resizing Logic ---
+        let isResizing = false;
+        let startX;
+        let startWidth;
+
+        sidebarResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = sidebar.offsetWidth;
+            document.body.style.cursor = 'ew-resize'; // Change cursor
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        });
+
+        const handleMouseMove = (e) => {
+            if (!isResizing) return;
+            const dx = e.clientX - startX;
+            let newWidth = startWidth + dx;
+
+            // Apply min/max width constraints
+            const minWidth = parseInt(getComputedStyle(sidebar).minWidth);
+            const maxWidth = parseInt(getComputedStyle(sidebar).maxWidth);
+            newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+            sidebar.style.width = `${newWidth}px`;
+        };
+
+        const handleMouseUp = () => {
+            isResizing = false;
+            document.body.style.cursor = ''; // Reset cursor
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        // --- Drag and Drop Logic ---
+        let draggingBlockType = null;
+
+        document.querySelectorAll('.block-item').forEach(blockItem => {
+            blockItem.addEventListener('dragstart', (e) => {
+                draggingBlockType = e.target.dataset.blockType;
+                e.dataTransfer.setData('text/plain', draggingBlockType);
+                e.dataTransfer.effectAllowed = 'copy'; // Indicate a copy operation
+            });
+        });
+
+        // Workspace is now inside the sidebar, so its drop target is still valid.
+        workspace.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow dropping
+            e.dataTransfer.dropEffect = 'copy'; // Visual feedback for copy
+        });
+
+        workspace.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggingBlockType) {
+                const newBlock = {
+                    id: generateUniqueId(),
+                    type: draggingBlockType,
+                    properties: {}, // Initialize with empty properties
+                };
+
+                // Set default properties based on block type
+                switch (draggingBlockType) {
+                    case 'image':
+                        newBlock.properties.src = 'https://placehold.co/300x200/000000/FFFFFF?text=Placeholder+Image';
+                        newBlock.properties.alt = 'Placeholder Image';
+                        break;
+                    case 'background-color':
+                        newBlock.properties.color = '#ffffff'; // Default white
+                        break;
+                    case 'paragraph':
+                        newBlock.properties.content = 'New Paragraph Text';
+                        break;
+                    case 'heading':
+                        newBlock.properties.level = 'h1'; // Default heading level
+                        newBlock.properties.content = 'New Heading';
+                        break;
+                    case 'button':
+                        newBlock.properties.text = 'Click Me';
+                        break;
+                    case 'unordered-list':
+                    case 'ordered-list':
+                        newBlock.properties.items = ['List Item 1', 'List Item 2'];
+                        break;
+                    case 'link':
+                        newBlock.properties.href = '#';
+                        newBlock.properties.text = 'New Link';
+                        break;
+                    case 'video':
+                        newBlock.properties.src = 'https://www.w3schools.com/html/mov_bbb.mp4'; // Example video
+                        newBlock.properties.controls = true;
+                        newBlock.properties.width = '320';
+                        newBlock.properties.height = '240';
+                        break;
+                    case 'horizontal-rule':
+                        // No specific properties
+                        break;
+                    case 'div-container':
+                        // No specific properties (for now, acts as a visual placeholder)
+                        break;
+                    case 'input-field':
+                        newBlock.properties.type = 'text';
+                        newBlock.properties.label = 'Input Label';
+                        newBlock.properties.placeholder = 'Enter text here';
+                        break;
+                    case 'textarea':
+                        newBlock.properties.label = 'Textarea Label';
+                        newBlock.properties.placeholder = 'Enter long text here';
+                        break;
+                    case 'line-break':
+                        // No specific properties
+                        break;
+                }
+
+                blocks.push(newBlock);
+                renderWorkspace();
+                generateHtmlContent();
+                draggingBlockType = null; // Reset dragging state
+            }
+        });
+
+        // --- Block Rendering and Interaction ---
+        const renderWorkspace = () => {
+            workspace.innerHTML = ''; // Clear existing blocks
+
+            if (blocks.length === 0) {
+                workspace.innerHTML = '<p>Drag and drop blocks here to build your site!</p>';
+                return;
+            }
+
+            blocks.forEach(block => {
+                const blockElement = document.createElement('div');
+                blockElement.className = `block-element ${selectedBlockId === block.id ? 'selected' : ''}`;
+                blockElement.dataset.blockId = block.id;
+
+                let displayText = block.type.replace('-', ' ').toUpperCase();
+                // Shorten display text for properties
+                if (block.type === 'image' && block.properties.src) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.src.split('/').pop()}</span>`;
+                } else if (block.type === 'background-color' && block.properties.color) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500">${block.properties.color}</span>`;
+                } else if (block.type === 'paragraph' && block.properties.content) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.content}</span>`;
+                } else if (block.type === 'heading' && block.properties.content) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.level.toUpperCase()}: ${block.properties.content}</span>`;
+                } else if (block.type === 'button' && block.properties.text) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.text}</span>`;
+                } else if ((block.type === 'unordered-list' || block.type === 'ordered-list') && block.properties.items && block.properties.items.length > 0) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">(${block.properties.items.length} items)</span>`;
+                } else if (block.type === 'link' && block.properties.text) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.text}</span>`;
+                } else if (block.type === 'video' && block.properties.src) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.src.split('/').pop()}</span>`;
+                } else if (block.type === 'input-field' && block.properties.label) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.label} (${block.properties.type})</span>`;
+                } else if (block.type === 'textarea' && block.properties.label) {
+                    displayText += `<span class="ml-2 text-sm text-gray-500 truncate inline-block max-w-[150px]">${block.properties.label}</span>`;
+                }
+
+
+                blockElement.innerHTML = `
+                    <span class="font-medium text-gray-700">${displayText}</span>
+                    <button class="delete-btn" title="Delete Block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                `;
+
+                blockElement.addEventListener('click', (e) => {
+                    // Prevent clicking the delete button from selecting the block
+                    if (e.target.closest('.delete-btn')) {
+                        return;
+                    }
+                    selectedBlockId = block.id;
+                    renderWorkspace(); // Re-render to apply 'selected' class
+                    openPropertyEditorModal(block);
+                });
+
+                blockElement.querySelector('.delete-btn').addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent block selection when deleting
+                    blocks = blocks.filter(b => b.id !== block.id);
+                    if (selectedBlockId === block.id) {
+                        selectedBlockId = null;
+                        closePropertyEditorModal(); // Close modal if deleted block was selected
+                    }
+                    renderWorkspace();
+                    generateHtmlContent();
+                });
+
+                workspace.appendChild(blockElement);
+            });
+        };
+
+        // --- Property Editor Modal Logic ---
+        const renderListItems = (block) => {
+            let itemsHtml = '';
+            block.properties.items.forEach((item, index) => {
+                itemsHtml += `
+                    <div class="flex items-center space-x-2 mb-2">
+                        <input type="text" data-list-index="${index}" value="${item}"
+                            class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2">
+                        <button type="button" data-action="remove-item" data-list-index="${index}"
+                            class="p-1 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors duration-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                `;
+            });
+            itemsHtml += `
+                <button type="button" data-action="add-item"
+                    class="w-full px-4 py-2 bg-green-500 text-white rounded-md shadow-md hover:bg-green-600 transition-colors duration-200 text-sm mt-2">
+                    Add List Item
+                </button>
+            `;
+            return itemsHtml;
+        };
+
+        const openPropertyEditorModal = (block) => {
+            propertyEditorFields.innerHTML = ''; // Clear previous fields
+
+            if (!block) {
+                propertyEditorFields.innerHTML = `
+                    <div class="p-4 bg-gray-100 rounded-lg shadow-inner text-gray-600 text-center">
+                        No block selected for editing.
+                    </div>
+                `;
+                return;
+            }
+
+            let fieldsHtml = '';
+            switch (block.type) {
+                case 'image':
+                    fieldsHtml = `
+                        <div>
+                            <label for="imageSrc" class="block text-sm font-medium text-gray-700 mb-1">Image URL:</label>
+                            <input type="text" id="imageSrc" name="src" value="${block.properties.src || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., https://example.com/image.jpg">
+                        </div>
+                        <div>
+                            <label for="imageAlt" class="block text-sm font-medium text-gray-700 mb-1">Alt Text:</label>
+                            <input type="text" id="imageAlt" name="alt" value="${block.properties.alt || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., A descriptive image">
+                        </div>
+                    `;
+                    break;
+                case 'background-color':
+                    fieldsHtml = `
+                        <div>
+                            <label for="bgColor" class="block text-sm font-medium text-gray-700 mb-1">Background Color:</label>
+                            <input type="color" id="bgColor" name="color" value="${block.properties.color || '#ffffff'}"
+                                class="mt-1 block w-full h-10 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                    `;
+                    break;
+                case 'paragraph':
+                    fieldsHtml = `
+                        <div>
+                            <label for="paragraphContent" class="block text-sm font-medium text-gray-700 mb-1">Paragraph Content:</label>
+                            <textarea id="paragraphContent" name="content"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                rows="3" placeholder="Enter your paragraph text here">${block.properties.content || ''}</textarea>
+                        </div>
+                    `;
+                    break;
+                case 'heading':
+                    fieldsHtml = `
+                        <div>
+                            <label for="headingLevel" class="block text-sm font-medium text-gray-700 mb-1">Heading Level:</label>
+                            <select id="headingLevel" name="level"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2">
+                                <option value="h1" ${block.properties.level === 'h1' ? 'selected' : ''}>H1</option>
+                                <option value="h2" ${block.properties.level === 'h2' ? 'selected' : ''}>H2</option>
+                                <option value="h3" ${block.properties.level === 'h3' ? 'selected' : ''}>H3</option>
+                                <option value="h4" ${block.properties.level === 'h4' ? 'selected' : ''}>H4</option>
+                                <option value="h5" ${block.properties.level === 'h5' ? 'selected' : ''}>H5</option>
+                                <option value="h6" ${block.properties.level === 'h6' ? 'selected' : ''}>H6</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="headingContent" class="block text-sm font-medium text-gray-700 mb-1">Heading Content:</label>
+                            <input type="text" id="headingContent" name="content" value="${block.properties.content || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="Enter heading text">
+                        </div>
+                    `;
+                    break;
+                case 'button':
+                    fieldsHtml = `
+                        <div>
+                            <label for="buttonText" class="block text-sm font-medium text-gray-700 mb-1">Button Text:</label>
+                            <input type="text" id="buttonText" name="text" value="${block.properties.text || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Submit">
+                        </div>
+                    `;
+                    break;
+                case 'unordered-list':
+                case 'ordered-list':
+                    fieldsHtml = `
+                        <div id="list-items-container">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">List Items:</label>
+                            ${renderListItems(block)}
+                        </div>
+                    `;
+                    break;
+                case 'link':
+                    fieldsHtml = `
+                        <div>
+                            <label for="linkHref" class="block text-sm font-medium text-gray-700 mb-1">Link URL (href):</label>
+                            <input type="text" id="linkHref" name="href" value="${block.properties.href || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., https://google.com">
+                        </div>
+                        <div>
+                            <label for="linkText" class="block text-sm font-medium text-gray-700 mb-1">Link Text:</label>
+                            <input type="text" id="linkText" name="text" value="${block.properties.text || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Click Me">
+                        </div>
+                    `;
+                    break;
+                case 'video':
+                    fieldsHtml = `
+                        <div>
+                            <label for="videoSrc" class="block text-sm font-medium text-gray-700 mb-1">Video URL (src):</label>
+                            <input type="text" id="videoSrc" name="src" value="${block.properties.src || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., https://example.com/video.mp4">
+                        </div>
+                        <div>
+                            <label for="videoWidth" class="block text-sm font-medium text-gray-700 mb-1">Width:</label>
+                            <input type="number" id="videoWidth" name="width" value="${block.properties.width || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., 320">
+                        </div>
+                        <div>
+                            <label for="videoHeight" class="block text-sm font-medium text-gray-700 mb-1">Height:</label>
+                            <input type="number" id="videoHeight" name="height" value="${block.properties.height || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., 240">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="videoControls" name="controls" ${block.properties.controls ? 'checked' : ''}
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <label for="videoControls" class="ml-2 block text-sm text-gray-900">Show Controls</label>
+                        </div>
+                    `;
+                    break;
+                case 'horizontal-rule':
+                case 'div-container':
+                case 'line-break':
+                    fieldsHtml = `
+                        <div class="p-4 bg-gray-100 rounded-lg text-gray-600 text-center">
+                            No specific properties for this block.
+                        </div>
+                    `;
+                    break;
+                case 'input-field':
+                    fieldsHtml = `
+                        <div>
+                            <label for="inputLabel" class="block text-sm font-medium text-gray-700 mb-1">Label:</label>
+                            <input type="text" id="inputLabel" name="label" value="${block.properties.label || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Your Name">
+                        </div>
+                        <div>
+                            <label for="inputType" class="block text-sm font-medium text-gray-700 mb-1">Type:</label>
+                            <select id="inputType" name="type"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2">
+                                <option value="text" ${block.properties.type === 'text' ? 'selected' : ''}>Text</option>
+                                <option value="number" ${block.properties.type === 'number' ? 'selected' : ''}>Number</option>
+                                <option value="email" ${block.properties.type === 'email' ? 'selected' : ''}>Email</option>
+                                <option value="password" ${block.properties.type === 'password' ? 'selected' : ''}>Password</option>
+                                <option value="checkbox" ${block.properties.type === 'checkbox' ? 'selected' : ''}>Checkbox</option>
+                                <option value="radio" ${block.properties.type === 'radio' ? 'selected' : ''}>Radio</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="inputPlaceholder" class="block text-sm font-medium text-gray-700 mb-1">Placeholder:</label>
+                            <input type="text" id="inputPlaceholder" name="placeholder" value="${block.properties.placeholder || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Enter your value">
+                        </div>
+                    `;
+                    break;
+                case 'textarea':
+                    fieldsHtml = `
+                        <div>
+                            <label for="textareaLabel" class="block text-sm font-medium text-gray-700 mb-1">Label:</label>
+                            <input type="text" id="textareaLabel" name="label" value="${block.properties.label || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Your Message">
+                        </div>
+                        <div>
+                            <label for="textareaPlaceholder" class="block text-sm font-medium text-gray-700 mb-1">Placeholder:</label>
+                            <input type="text" id="textareaPlaceholder" name="placeholder" value="${block.properties.placeholder || ''}"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"
+                                placeholder="e.g., Type your message here">
+                        </div>
+                    `;
+                    break;
+            }
+            propertyEditorFields.innerHTML = fieldsHtml;
+
+            // Add event listeners to the newly created input fields in the modal
+            propertyEditorFields.querySelectorAll('input, textarea, select').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const currentBlock = blocks.find(b => b.id === selectedBlockId);
+                    if (currentBlock) {
+                        const { name, value, type, checked, dataset } = e.target;
+                        if (dataset.listIndex !== undefined) { // Handle list items
+                            const index = parseInt(dataset.listIndex);
+                            currentBlock.properties.items[index] = value;
+                        } else {
+                            const newValue = type === 'checkbox' ? checked : value;
+                            currentBlock.properties[name] = newValue;
+                        }
+                        generateHtmlContent();
+                        renderWorkspace(); // Re-render workspace to update block display text if needed
+                    }
+                });
+            });
+
+            // Add event listeners for list item buttons
+            propertyEditorFields.querySelectorAll('button[data-action]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const currentBlock = blocks.find(b => b.id === selectedBlockId);
+                    if (!currentBlock || (!currentBlock.properties.items && e.target.dataset.action !== 'add-item')) return;
+
+                    if (e.target.dataset.action === 'add-item') {
+                        if (!currentBlock.properties.items) {
+                            currentBlock.properties.items = [];
+                        }
+                        currentBlock.properties.items.push('New List Item');
+                    } else if (e.target.dataset.action === 'remove-item') {
+                        const index = parseInt(e.target.dataset.listIndex);
+                        currentBlock.properties.items.splice(index, 1);
+                    }
+                    // Re-render the list items in the modal
+                    document.getElementById('list-items-container').innerHTML = `
+                        <label class="block text-sm font-medium text-gray-700 mb-2">List Items:</label>
+                        ${renderListItems(currentBlock)}
+                    `;
+                    // Re-attach listeners to new list item inputs/buttons
+                    propertyEditorFields.querySelectorAll('input[data-list-index], button[data-action]').forEach(el => {
+                        if (el.tagName === 'INPUT') {
+                            el.addEventListener('input', (e) => {
+                                const currentBlock = blocks.find(b => b.id === selectedBlockId);
+                                if (currentBlock) {
+                                    const index = parseInt(e.target.dataset.listIndex);
+                                    currentBlock.properties.items[index] = e.target.value;
+                                    generateHtmlContent();
+                                    renderWorkspace();
+                                }
+                            });
+                        } else if (el.tagName === 'BUTTON') {
+                             el.addEventListener('click', (e) => {
+                                const currentBlock = blocks.find(b => b.id === selectedBlockId);
+                                if (!currentBlock || (!currentBlock.properties.items && e.target.dataset.action !== 'add-item')) return;
+
+                                if (e.target.dataset.action === 'add-item') {
+                                    if (!currentBlock.properties.items) {
+                                        currentBlock.properties.items = [];
+                                    }
+                                    currentBlock.properties.items.push('New List Item');
+                                } else if (e.target.dataset.action === 'remove-item') {
+                                    const index = parseInt(e.target.dataset.listIndex);
+                                    currentBlock.properties.items.splice(index, 1);
+                                }
+                                // Re-render the list items in the modal
+                                document.getElementById('list-items-container').innerHTML = `
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">List Items:</label>
+                                    ${renderListItems(currentBlock)}
+                                `;
+                                // Re-attach listeners to new list item inputs/buttons
+                                propertyEditorFields.querySelectorAll('input[data-list-index], button[data-action]').forEach(el => {
+                                    if (el.tagName === 'INPUT') {
+                                        el.addEventListener('input', (e) => {
+                                            const currentBlock = blocks.find(b => b.id === selectedBlockId);
+                                            if (currentBlock) {
+                                                const index = parseInt(e.target.dataset.listIndex);
+                                                currentBlock.properties.items[index] = e.target.value;
+                                                generateHtmlContent();
+                                                renderWorkspace();
+                                            }
+                                        });
+                                    } else if (el.tagName === 'BUTTON') {
+                                        // This recursive attachment is fine for a few items but for many,
+                                        // a more efficient delegation pattern would be better.
+                                        // For this example, it's acceptable.
+                                        el.addEventListener('click', arguments.callee); // Re-attach this same listener
+                                    }
+                                });
+                                generateHtmlContent();
+                                renderWorkspace();
+                            });
+                        }
+                    });
+                    generateHtmlContent();
+                    renderWorkspace();
+                });
+            });
+
+
+            propertyEditorModalOverlay.classList.add('open'); // Show the modal
+        };
+
+        const closePropertyEditorModal = () => {
+            propertyEditorModalOverlay.classList.remove('open'); // Hide the modal
+            selectedBlockId = null; // Deselect block
+            renderWorkspace(); // Re-render workspace to remove 'selected' class
+        };
+
+        modalCloseBtn.addEventListener('click', closePropertyEditorModal);
+        // Close modal if clicking outside the content
+        propertyEditorModalOverlay.addEventListener('click', (e) => {
+            if (e.target === propertyEditorModalOverlay) {
+                closePropertyEditorModal();
+            }
+        });
+
+
+        // --- HTML Generation Logic ---
+        const generateHtmlContent = () => {
+            let bodyContent = '';
+            let bodyStyle = '';
+
+            blocks.forEach((block) => {
+                switch (block.type) {
+                    case 'image':
+                        bodyContent += `<img src="${block.properties.src || ''}" alt="${block.properties.alt || ''}" class="rounded-lg shadow-md max-w-full h-auto mb-4" />\n`;
+                        break;
+                    case 'background-color':
+                        if (!bodyStyle) { // Only apply the first background color block found
+                            bodyStyle = `background-color: ${block.properties.color || '#ffffff'};`;
+                        }
+                        break;
+                    case 'paragraph':
+                        bodyContent += `<p class="text-gray-800 text-lg mb-4">${block.properties.content || ''}</p>\n`;
+                        break;
+                    case 'heading':
+                        const level = block.properties.level || 'h1';
+                        bodyContent += `<${level} class="text-gray-800 font-bold mb-4">${block.properties.content || ''}</${level}>\n`;
+                        break;
+                    case 'button':
+                        bodyContent += `<button class="px-4 py-2 bg-blue-500 text-white rounded-md shadow-md hover:bg-blue-600 transition-colors duration-200 mb-4">${block.properties.text || ''}</button>\n`;
+                        break;
+                    case 'unordered-list':
+                        let ulItems = '';
+                        if (block.properties.items) {
+                            block.properties.items.forEach(item => {
+                                ulItems += `<li>${item}</li>`;
+                            });
+                        }
+                        bodyContent += `<ul class="list-disc list-inside text-gray-800 mb-4">${ulItems}</ul>\n`;
+                        break;
+                    case 'ordered-list':
+                        let olItems = '';
+                        if (block.properties.items) {
+                            block.properties.items.forEach(item => {
+                                olItems += `<li>${item}</li>`;
+                            });
+                        }
+                        bodyContent += `<ol class="list-decimal list-inside text-gray-800 mb-4">${olItems}</ol>\n`;
+                        break;
+                    case 'link':
+                        bodyContent += `<a href="${block.properties.href || '#'}" class="text-blue-600 hover:underline mb-4 block">${block.properties.text || ''}</a>\n`;
+                        break;
+                    case 'video':
+                        bodyContent += `<video src="${block.properties.src || ''}" ${block.properties.controls ? 'controls' : ''} width="${block.properties.width || '320'}" height="${block.properties.height || '240'}" class="rounded-lg shadow-md max-w-full h-auto mb-4"></video>\n`;
+                        break;
+                    case 'horizontal-rule':
+                        bodyContent += `<hr class="border-t-2 border-gray-300 my-4" />\n`;
+                        break;
+                    case 'div-container':
+                        bodyContent += `<div class="border border-dashed border-gray-400 p-4 mb-4 rounded-md text-gray-600">Div Container (drag elements inside me in the workspace)</div>\n`;
+                        break;
+                    case 'input-field':
+                        const inputId = `input-${block.id}`;
+                        const inputType = block.properties.type || 'text';
+                        const inputLabel = block.properties.label || '';
+                        const inputPlaceholder = block.properties.placeholder || '';
+                        if (inputType === 'checkbox' || inputType === 'radio') {
+                            bodyContent += `
+                                <div class="flex items-center mb-4">
+                                    <input type="${inputType}" id="${inputId}" class="h-4 w-4 text-blue-600 border-gray-300 rounded" ${block.properties.checked ? 'checked' : ''}>
+                                    <label for="${inputId}" class="ml-2 text-gray-700">${inputLabel}</label>
+                                </div>\n`;
+                        } else {
+                            bodyContent += `
+                                <div class="mb-4">
+                                    <label for="${inputId}" class="block text-sm font-medium text-gray-700 mb-1">${inputLabel}</label>
+                                    <input type="${inputType}" id="${inputId}" placeholder="${inputPlaceholder}"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2">
+                                </div>\n`;
+                        }
+                        break;
+                    case 'textarea':
+                        const textareaId = `textarea-${block.id}`;
+                        const textareaLabel = block.properties.label || '';
+                        const textareaPlaceholder = block.properties.placeholder || '';
+                        bodyContent += `
+                            <div class="mb-4">
+                                <label for="${textareaId}" class="block text-sm font-medium text-gray-700 mb-1">${textareaLabel}</label>
+                                <textarea id="${textareaId}" placeholder="${textareaPlaceholder}" rows="3"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2"></textarea>
+                            </div>\n`;
+                        break;
+                    case 'line-break':
+                        bodyContent += `<br />\n`;
+                        break;
+                    default:
+                        break;
+                }
+            });
+
+            const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My HTML Site</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            ${bodyStyle}
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-xl">
+        ${bodyContent}
+    </div>
+</body>
+</html>`;
+
+            livePreviewIframe.srcdoc = fullHtml;
+            htmlCodeOutput.textContent = fullHtml;
+        };
+
+        // --- Copy HTML Button Logic ---
+        copyHtmlBtn.addEventListener('click', () => {
+            const textToCopy = htmlCodeOutput.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert('HTML code copied to clipboard!'); // Using alert for simplicity, consider custom modal
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy HTML code.');
+            }
+            document.body.removeChild(textarea);
+        });
+
+        // --- Block Search Logic ---
+        blockSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            blockPaletteList.querySelectorAll('.block-item').forEach(blockItem => {
+                const blockType = blockItem.dataset.blockType.toLowerCase();
+                const blockText = blockItem.textContent.toLowerCase();
+                if (blockType.includes(searchTerm) || blockText.includes(searchTerm)) {
+                    blockItem.style.display = 'block'; // Show block
+                } else {
+                    blockItem.style.display = 'none'; // Hide block
+                }
+            });
+        });
+
+
+        // Initial render on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            renderWorkspace();
+            generateHtmlContent();
+            // No need to render property editor initially, it's a modal now
+        });
+    </script>
+</body>
+</html>
